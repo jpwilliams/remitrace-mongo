@@ -1,0 +1,18 @@
+{
+  "name": "remitrace-mongo",
+  "version": "0.0.0",
+  "description": "A single service in your infrastructure to provide tracing parsing to the entire system.",
+  "main": "index.js",
+  "repository": "https://github.com/jpwilliams/remitrace-mongo",
+  "author": "Jack Williams",
+  "license": "MIT",
+  "dependencies": {
+    "debug": "^3.1.0",
+    "microboot": "^3.0.3",
+    "mongodb": "^3.0.1",
+    "remit": "^2.2.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
