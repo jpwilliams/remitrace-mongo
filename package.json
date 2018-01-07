@@ -1,6 +1,6 @@
 {
   "name": "remitrace-mongo",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "A single service in your infrastructure to provide tracing parsing to the entire system.",
   "main": "index.js",
   "repository": "https://github.com/jpwilliams/remitrace-mongo",
