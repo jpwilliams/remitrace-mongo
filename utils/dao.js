@@ -33,26 +33,43 @@ async function findCause (query, traces = []) {
   if (!nextTrace) return traces
   traces.push(nextTrace)
 
-  const { metadata, eventId } = nextTrace.event
+  const { action, event } = nextTrace
+  const { metadata, eventId } = event
   const { flowType, bubbleId, fromBubbleId } = metadata
 
   if (!bubbleId && !fromBubbleId) return traces
 
   // sort out what to search for next
-  const nextQuery = flowType === 'exit' ? {
-    'event.metadata.flowType': 'entry',
-    'event.metadata.bubbleId': bubbleId
-  } : {
-    'event.metadata.flowType': 'exit',
-    'event.metadata.bubbleId': flowType ? fromBubbleId : bubbleId,
-    'event.eventId': eventId
+  let nextQuery
+
+  if (flowType === 'entry') {
+    nextQuery = {
+      'event.metadata.flowType': 'exit',
+      'event.metadata.bubbleId': fromBubbleId,
+      'event.eventId': eventId
+    }
+  } else if (flowType === 'exit') {
+    nextQuery = {
+      'event.metadata.flowType': 'entry',
+      'event.metadata.bubbleId': bubbleId
+    }
+  } else if (action === 'ENDP SENT') {
+    nextQuery = {
+      action: 'ENDP RECV',
+      'event.eventId': eventId
+    }
+  } else {
+    nextQuery = {
+      action: 'REQU SENT',
+      'event.eventId': eventId
+    }
   }
 
   // go search for it
   return findCause(nextQuery, traces)
 }
 
-async function findAll (originId) {
+async function tree (originId) {
   // build query
   const query = {
     'event.metadata.originId': originId
@@ -61,14 +78,76 @@ async function findAll (originId) {
   // find all
   const collection = await mongo
 
-  return collection
+  const traces = await collection
     .find(query)
     .sort([['time', 1]])
     .toArray()
+
+  if (!traces.length) {
+    return {}
+  }
+
+  const { bubbleMap, fromBubbleMap } = traces.reduce((maps, trace) => {
+    const { bubbleId, instanceId, flowType, fromBubbleId } = trace.event.metadata
+
+    maps.bubbleMap[bubbleId] = maps.bubbleMap[bubbleId] || {}
+    maps.bubbleMap[bubbleId][instanceId] = trace
+
+    if (flowType === 'entry') {
+      maps.fromBubbleMap[fromBubbleId] = maps.fromBubbleMap[fromBubbleId] || []
+      maps.fromBubbleMap[fromBubbleId].push(maps.bubbleMap[bubbleId])
+    }
+
+    return maps
+  }, {
+    bubbleMap: {},
+    fromBubbleMap: {}
+  })
+
+  const seed = bubbleMap[null]
+  const tree = buildTree(fromBubbleMap, seed)
+
+  return tree
+}
+
+function buildTree (map, tree) {
+  const branches = Object.keys(tree).reduce((branches, instanceId) => {
+    const branch = tree[instanceId]
+
+    if (!branch) {
+      return branches
+    }
+
+    const { flowType, bubbleId } = branch.event.metadata
+
+    if (flowType === 'exit') {
+      branch.effects = map[bubbleId].map((t) => {
+        return buildTree(map, t)
+      })
+    }
+
+    branches[instanceId] = {
+      action: branch.action,
+      instanceId: branch.event.metadata.instanceId,
+      eventType: branch.event.eventType,
+      resource: branch.event.resource,
+      resourceTrace: branch.event.resourceTrace,
+      effects: branch.effects,
+      data: branch.event.data
+    }
+
+    return branches
+  }, {})
+
+  const sortedKeys = Object.keys(branches).sort()
+
+  return sortedKeys.map((key) => {
+    return branches[key]
+  })
 }
 
 module.exports = {
   saveTrace,
   findCause,
-  findAll
+  tree
 }
