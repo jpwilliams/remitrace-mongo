@@ -1,5 +1,7 @@
 # remitrace-mongo
 
+Built for [`remit`](https://github.com/jpwilliams/remit) tracing storage and querying utilising [`remitrace`](https://github.com/jpwilliams/remitrace).
+
 Consumes `remitrace` messages and provides an API for parsing the stored information. Can be run as a single service in your infrastructure to provide tracing support to the entire system.
 
 ## Usage
